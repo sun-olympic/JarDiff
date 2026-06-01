@@ -43,6 +43,7 @@ jobs:
           codesign --force --deep --sign - "$APP"
           STAGING="$(mktemp -d)"
           cp -R "$APP" "$STAGING/"
+          cp "双击打不开看这里.txt" "$STAGING/"
           ln -s /Applications "$STAGING/Applications"
           hdiutil create -volname JarDiff -srcfolder "$STAGING" -ov -format UDZO \
             dist_pyinstaller/JarDiff.dmg
