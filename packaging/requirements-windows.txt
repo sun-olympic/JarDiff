@@ -1,0 +1,7 @@
+# JarDiff Windows 打包依赖
+# 在 Windows 上 pywebview 默认使用 Edge WebView2(EdgeChromium)，
+# pip 会自动拉取 pythonnet / clr_loader 等 .NET 桥接依赖。
+# 运行前请确保系统已安装 "Microsoft Edge WebView2 Runtime"（Win10/11 多数自带）。
+pywebview>=6.0
+pyinstaller>=6.0
+pillow>=10.0

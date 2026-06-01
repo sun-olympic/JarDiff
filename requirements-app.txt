@@ -1,0 +1,3 @@
+# JarDiff 桌面应用运行依赖
+# 在 macOS 上 pywebview 会自动拉取 pyobjc 系列（Cocoa / WebKit）
+pywebview>=6.0

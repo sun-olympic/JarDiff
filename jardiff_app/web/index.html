@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JarDiff</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部工具栏 -->
+    <header class="toolbar">
+      <div class="row">
+        <label class="field grow">
+          <span>旧版 JAR</span>
+          <input id="old" type="text" placeholder="本地路径 / URL / Maven 坐标 g:a:v" />
+        </label>
+        <button id="swapBtn" class="ghost swap" type="button" title="交换旧版 / 新版">⇄</button>
+        <label class="field grow">
+          <span>新版 JAR</span>
+          <input id="new" type="text" placeholder="本地路径 / URL / Maven 坐标 g:a:v" />
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span>反编译</span>
+          <select id="decompiler">
+            <option value="none">不反编译（仅文本文件）</option>
+            <option value="javap">javap（字节码）</option>
+            <option value="cfr" selected>CFR（Java 源码，自动下载）</option>
+          </select>
+        </label>
+        <label class="field grow">
+          <span>过滤路径包含</span>
+          <input id="filter" type="text" placeholder="如 com/example（可空）" />
+        </label>
+        <label class="field check">
+          <input id="ignoreMeta" type="checkbox" />
+          <span>忽略 META-INF</span>
+        </label>
+        <button id="advBtn" class="ghost" type="button">仓库设置 ▾</button>
+        <button id="compareBtn" class="primary" type="button">开始对比</button>
+      </div>
+      <div class="row adv hidden" id="advPanel">
+        <label class="field grow">
+          <span>Maven 仓库</span>
+          <input id="repo" type="text" />
+        </label>
+        <label class="field">
+          <span>用户名</span>
+          <input id="user" type="text" placeholder="可空" />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input id="password" type="password" placeholder="可空" />
+        </label>
+        <button id="saveRepoBtn" class="ghost" type="button">保存设置</button>
+        <button id="resetRepoBtn" class="ghost" type="button">恢复默认仓库</button>
+      </div>
+    </header>
+
+    <!-- 主体：左侧文件列表 + 右侧内嵌编辑器 -->
+    <main class="body">
+      <aside class="sidebar">
+        <div class="summary" id="summary">
+          <div class="hint">填写两个 JAR 来源后点击「开始对比」。</div>
+        </div>
+        <div class="filelist" id="filelist"></div>
+      </aside>
+      <section class="editor-pane">
+        <div class="editor-header" id="editorHeader">未选择文件</div>
+        <div id="editor" class="editor"></div>
+        <div id="placeholder" class="placeholder">左侧选择一个文件查看代码对比</div>
+      </section>
+    </main>
+
+    <!-- 状态栏 -->
+    <footer class="statusbar">
+      <span id="status">就绪</span>
+      <span id="spinner" class="spinner hidden"></span>
+    </footer>
+  </div>
+
+  <!-- Monaco loader：优先本地 vendor，失败回退 CDN -->
+  <script>
+    window.__MONACO_BASES__ = [
+      "vendor/vs",
+      "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs",
+    ];
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>

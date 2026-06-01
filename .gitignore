@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 虚拟环境
+.venv/
+.venv-win/
+venv/
+
+# 打包 / 构建产物
+build/
+build_verify/
+dist/
+dist_pyinstaller/
+dist_installer/
+dist_verify/
+*.spec.bak
+
+# 运行期生成的设置/缓存（理论上不在仓库内，保险起见）
+settings.json
+
+# macOS
+.DS_Store
+
+# 编辑器
+.idea/
+.vscode/
