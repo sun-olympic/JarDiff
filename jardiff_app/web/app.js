@@ -209,7 +209,7 @@ function buildTree(files) {
   return root;
 }
 
-/* 合并单链目录：com/zhaopin/op → 一行（类似 VS Code compact folders） */
+/* 合并单链目录：com/example/app → 一行（类似 VS Code compact folders） */
 function compactTree(node) {
   Object.values(node.children).forEach(compactTree);
   const merged = {};

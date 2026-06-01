@@ -12,7 +12,7 @@
 
 #define MyAppName "JarDiff"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Zhaopin Tools"
+#define MyAppPublisher "JarDiff"
 #define MyAppExeName "JarDiff.exe"
 
 [Setup]

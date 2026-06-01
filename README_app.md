@@ -38,8 +38,8 @@ ToolScript/
 │       ├── style.css
 │       └── vendor/vs/       # 打包时注入的 Monaco（离线可用）
 ├── requirements-app.txt     # 应用依赖（pywebview）
-├── run_app.sh               # 开发模式启动
-└── build_app.sh             # 构建可安装的 JarDiff.app
+├── jardiff.spec             # PyInstaller 打包配置（跨平台）
+└── run_app.sh               # 开发模式启动
 ```
 
 ---
@@ -60,33 +60,19 @@ JARDIFF_DEBUG=1 ./run_app.sh
 
 ---
 
-## 方式二：构建可安装的 .app
+## 方式二：打包成可分发程序
+
+打包基于 PyInstaller 配置 `jardiff.spec`（跨平台，自动按平台选图标）：
 
 ```bash
-./build_app.sh
+pyinstaller --noconfirm jardiff.spec
 ```
 
-产物在 `dist/JarDiff.app`，特点：
+- macOS 产出自包含 `JarDiff.app`（不依赖系统 Python）
+- Windows 打包与安装程序制作详见 `README_windows.md`
 
-- **自带 Python venv**（内置 pywebview），双击即用
-- **Monaco 已打包进 app**，离线也能渲染（下载失败时运行时回退 CDN）
-
-运行 / 安装：
-
-```bash
-open dist/JarDiff.app          # 直接运行
-# 或把 dist/JarDiff.app 拖入「应用程序」(/Applications)
-```
-
-> 注意：内置 venv 通过 `pyvenv.cfg` 引用本机的 Homebrew Python，因此**请保留该 Python 安装**。
-> 如需完全自包含、可分发给其他机器的版本，需进一步用 py2app/PyInstaller 冻结解释器（可按需扩展 `build_app.sh`）。
-
-### 首次打开被 Gatekeeper 拦截
-
-应用未签名，macOS 可能提示「无法打开」。任选其一：
-
-- 右键 App →「打开」→ 在弹窗中再次点「打开」
-- 或执行：`xattr -dr com.apple.quarantine dist/JarDiff.app`
+> 未签名的 app 首次在 macOS 打开可能被 Gatekeeper 拦截，可右键 App →「打开」，
+> 或执行 `xattr -dr com.apple.quarantine <App路径>` 放行。
 
 ---
 

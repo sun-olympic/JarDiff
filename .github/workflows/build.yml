@@ -1,4 +1,4 @@
-name: Build JarDiff (mac + windows)
+name: Build JarDiff (windows)
 
 # 触发方式：
 #   - 手动：Actions 页面点 "Run workflow"
@@ -13,35 +13,6 @@ permissions:
   contents: write
 
 jobs:
-  # ===================== macOS：自包含 .app + 未公证 DMG =====================
-  build-macos:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: 安装依赖到 .venv
-        run: |
-          python -m venv .venv
-          .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/python -m pip install pywebview pyinstaller pillow
-
-      - name: 生成图标 (icns + ico)
-        run: .venv/bin/python make_icon.py
-
-      - name: 打包 + Ad-hoc 签名 + DMG
-        run: ADHOC=1 ./build_dmg.sh
-
-      - name: 上传 DMG 产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: JarDiff-macOS-dmg
-          path: dist_pyinstaller/JarDiff.dmg
-          if-no-files-found: error
-
   # ===================== Windows：自包含 exe + 安装程序 =====================
   build-windows:
     runs-on: windows-latest
@@ -84,9 +55,9 @@ jobs:
             dist/JarDiff-portable.zip
           if-no-files-found: error
 
-  # ===================== 打 tag 时：把两端产物发布到 Release =====================
+  # ===================== 打 tag 时：把 Windows 产物发布到 Release =====================
   release:
-    needs: [build-macos, build-windows]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -99,7 +70,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/**/*.dmg
             artifacts/**/*.exe
             artifacts/**/*.zip
           generate_release_notes: true

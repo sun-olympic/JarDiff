@@ -27,7 +27,7 @@ IGNORE_PATTERNS = {
     "META-INF/MANIFEST.MF",
 }
 
-DEFAULT_MAVEN_REPO = "https://repo.zhaopin.com/repository/maven-public/"
+DEFAULT_MAVEN_REPO = "https://repo1.maven.org/maven2"
 
 # 自动下载的反编译器（CFR），缓存到本地后复用
 CFR_COORD = "org.benf:cfr:0.152"
@@ -450,7 +450,7 @@ def main():
   %(prog)s com.google.guava:guava:31.0-jre com.google.guava:guava:32.0-jre --diff
 
   # 指定私服仓库 + 认证
-  %(prog)s g:a:1.0 g:a:1.1 --repo https://repo.zhaopin.com/repository/maven-public/ \\
+  %(prog)s g:a:1.0 g:a:1.1 --repo https://your-private-repo.example.com/maven \\
            --user alice --password secret
 
   # 混用：本地包 vs 仓库包

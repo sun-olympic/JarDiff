@@ -29,3 +29,21 @@ settings.json
 
 # 本地工具目录
 .ai-tracker/
+
+# 签名/公证等机密：严禁提交（CI 请用 GitHub Secrets）
+*.p12
+*.pfx
+*.pem
+*.cer
+*.cert
+*.p8
+*.key
+*.keystore
+*.jks
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+secrets*.json
+notary*.json
+*.credentials

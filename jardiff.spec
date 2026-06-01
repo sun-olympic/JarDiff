@@ -84,7 +84,7 @@ if IS_MAC:
         coll,
         name="JarDiff.app",
         icon="jardiff_app/icon.icns",
-        bundle_identifier="com.zhaopin.tools.jardiff",
+        bundle_identifier="com.example.jardiff",
         version="1.0.0",
         info_plist={
             "CFBundleName": "JarDiff",
