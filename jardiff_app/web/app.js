@@ -63,6 +63,7 @@ function collectSettings() {
   const s = {};
   TEXT_FIELDS.forEach((id) => { s[id] = $(id).value; });
   s.ignoreMeta = $("ignoreMeta").checked;
+  s.insecure = $("insecure").checked;
   return s;
 }
 
@@ -72,6 +73,7 @@ function applySettings(s) {
     if (s[id] !== undefined && s[id] !== null) $(id).value = s[id];
   });
   if (typeof s.ignoreMeta === "boolean") $("ignoreMeta").checked = s.ignoreMeta;
+  if (typeof s.insecure === "boolean") $("insecure").checked = s.insecure;
 }
 
 async function getDefaultRepo() {
@@ -142,6 +144,7 @@ async function doCompare() {
     decompiler: $("decompiler").value,
     filter: $("filter").value,
     ignoreMeta: $("ignoreMeta").checked,
+    insecure: $("insecure").checked,
   };
   if (!payload.old || !payload.new) {
     setStatus("请填写两个 JAR 来源", false);

@@ -8,6 +8,7 @@ import hashlib
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -73,13 +74,17 @@ def _build_auth_header(user: str | None, password: str | None) -> dict[str, str]
 
 
 def download_file(url: str, dest_path: str, user: str | None = None,
-                  password: str | None = None) -> None:
-    """下载远程文件到本地路径。"""
+                  password: str | None = None, insecure: bool = False) -> None:
+    """下载远程文件到本地路径。
+
+    insecure=True 时跳过 HTTPS 证书校验，用于自签名 / 企业 CA 的内网仓库。"""
     headers = {"User-Agent": "jar-diff/1.0"}
     headers.update(_build_auth_header(user, password))
     req = urllib.request.Request(url, headers=headers)
+    context = ssl._create_unverified_context() if insecure else None
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp, open(dest_path, "wb") as out:
+        with urllib.request.urlopen(req, timeout=60, context=context) as resp, \
+                open(dest_path, "wb") as out:
             shutil.copyfileobj(resp, out)
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"下载失败 ({e.code} {e.reason}): {url}") from e
@@ -121,6 +126,7 @@ def resolve_to_local_jar(
     repo_base: str,
     user: str | None,
     password: str | None,
+    insecure: bool = False,
 ) -> str:
     """将来源（本地路径 / URL / Maven 坐标）解析为本地 JAR 文件路径。"""
     if os.path.isfile(source):
@@ -135,14 +141,15 @@ def resolve_to_local_jar(
 
     dest = os.path.join(tmp_dir, f"{prefix}.jar")
     print(colored(f"  ↓ 下载 {url}", COLOR_CYAN))
-    download_file(url, dest, user, password)
+    download_file(url, dest, user, password, insecure)
     size_kb = os.path.getsize(dest) / 1024
     print(colored(f"    完成 ({size_kb:.1f} KB) → {dest}", COLOR_CYAN))
     return dest
 
 
 def resolve_decompiler(value: str, repo_base: str,
-                       user: str | None, password: str | None) -> str:
+                       user: str | None, password: str | None,
+                       insecure: bool = False) -> str:
     """解析 --decompiler 参数为可用的反编译器 jar 路径。
     - 已存在的文件：直接使用。
     - 'cfr' / 'auto'：自动下载 CFR 到缓存目录。
@@ -171,7 +178,7 @@ def resolve_decompiler(value: str, repo_base: str,
     url = maven_coord_to_url(CFR_COORD, repo_base)
     print(colored(f"  ↓ 自动下载反编译器 CFR: {url}", COLOR_CYAN))
     try:
-        download_file(url, dest, user, password)
+        download_file(url, dest, user, password, insecure)
     except RuntimeError:
         # 私服没有时回退到 Maven 中央仓库
         fallback = maven_coord_to_url(CFR_COORD, "https://repo1.maven.org/maven2")
@@ -479,6 +486,8 @@ def main():
                         help=f"Maven 仓库基址（用于解析坐标），默认: {DEFAULT_MAVEN_REPO}")
     parser.add_argument("--user", type=str, default=None, help="仓库认证用户名（Basic Auth）")
     parser.add_argument("--password", type=str, default=None, help="仓库认证密码（Basic Auth）")
+    parser.add_argument("--insecure", action="store_true",
+                        help="跳过 HTTPS 证书校验（用于自签名 / 企业 CA 的内网仓库）")
     parser.add_argument("--keep-downloads", action="store_true",
                         help="保留下载的临时 JAR 文件（默认运行结束后删除）")
     parser.add_argument("--editor", nargs="?", const="auto", default=None, metavar="CMD",
@@ -503,7 +512,7 @@ def main():
     if args.decompiler:
         try:
             args.decompiler = resolve_decompiler(
-                args.decompiler, args.repo, args.user, args.password)
+                args.decompiler, args.repo, args.user, args.password, args.insecure)
         except (RuntimeError, ValueError) as e:
             print(f"错误: {e}", file=sys.stderr)
             sys.exit(1)
@@ -515,9 +524,11 @@ def main():
 
         try:
             old_path = resolve_to_local_jar(
-                args.old_jar, tmp_dir, "old", args.repo, args.user, args.password)
+                args.old_jar, tmp_dir, "old", args.repo, args.user, args.password,
+                args.insecure)
             new_path = resolve_to_local_jar(
-                args.new_jar, tmp_dir, "new", args.repo, args.user, args.password)
+                args.new_jar, tmp_dir, "new", args.repo, args.user, args.password,
+                args.insecure)
         except (RuntimeError, ValueError) as e:
             print(f"错误: {e}", file=sys.stderr)
             sys.exit(1)

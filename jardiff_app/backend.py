@@ -102,7 +102,8 @@ class JarDiffApi:
             self._tmp_dir = None
 
     def _resolve_decompiler(self, mode: str, repo: str,
-                            user: str | None, password: str | None):
+                            user: str | None, password: str | None,
+                            insecure: bool = False):
         """根据前端选择返回 (decompile?, decompiler_jar)。
         mode: none | javap | cfr | <自定义路径>"""
         mode = (mode or "none").strip()
@@ -111,7 +112,7 @@ class JarDiffApi:
         if mode == "javap":
             return True, None
         # cfr / auto / 自定义路径 → 交给 jar_diff 解析（cfr 会自动下载）
-        jar = jd.resolve_decompiler(mode, repo, user, password)
+        jar = jd.resolve_decompiler(mode, repo, user, password, insecure)
         return True, jar
 
     # ---------- 暴露给前端的方法 ----------
@@ -136,6 +137,7 @@ class JarDiffApi:
             decompiler_mode = payload.get("decompiler") or "none"
             filter_str = (payload.get("filter") or "").strip()
             ignore_meta = bool(payload.get("ignoreMeta"))
+            insecure = bool(payload.get("insecure"))
 
             with self._lock:
                 self._cleanup_tmp()
@@ -143,12 +145,12 @@ class JarDiffApi:
 
                 with contextlib.redirect_stdout(log_buf):
                     decompile, decompiler_jar = self._resolve_decompiler(
-                        decompiler_mode, repo, user, password)
+                        decompiler_mode, repo, user, password, insecure)
 
                     old_path = jd.resolve_to_local_jar(
-                        old_src, self._tmp_dir, "old", repo, user, password)
+                        old_src, self._tmp_dir, "old", repo, user, password, insecure)
                     new_path = jd.resolve_to_local_jar(
-                        new_src, self._tmp_dir, "new", repo, user, password)
+                        new_src, self._tmp_dir, "new", repo, user, password, insecure)
 
                     old_entries = jd.read_jar_entries(old_path)
                     new_entries = jd.read_jar_entries(new_path)

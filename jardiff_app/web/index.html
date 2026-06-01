@@ -54,6 +54,10 @@
           <span>密码</span>
           <input id="password" type="password" placeholder="可空" />
         </label>
+        <label class="field check" title="自签名 / 企业 CA 的内网仓库出现证书错误时勾选">
+          <input id="insecure" type="checkbox" />
+          <span>忽略 SSL 校验</span>
+        </label>
         <button id="saveRepoBtn" class="ghost" type="button">保存设置</button>
         <button id="resetRepoBtn" class="ghost" type="button">恢复默认仓库</button>
       </div>
