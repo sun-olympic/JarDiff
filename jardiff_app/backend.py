@@ -245,6 +245,9 @@ class JarDiffApi:
         # 仓库地址缺省回落到公共仓库
         if not data.get("repo"):
             data["repo"] = DEFAULT_PUBLIC_REPO
+        # 默认勾选忽略 SSL 校验（如果设置中无此项，则默认设为 True）
+        if "insecure" not in data:
+            data["insecure"] = True
         return {"ok": True, "settings": data}
 
     def save_settings(self, settings: dict) -> dict:

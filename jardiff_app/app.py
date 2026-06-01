@@ -61,9 +61,59 @@ def _selfcheck() -> int:
     return 0 if ok else 1
 
 
+def _check_webview2_on_windows() -> bool:
+    """检查 Windows 上是否安装了 Microsoft Edge WebView2 Runtime。"""
+    if sys.platform != "win32":
+        return True
+    try:
+        import winreg
+    except ImportError:
+        return True
+
+    guid = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+    paths = [
+        r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\\" + guid,
+        r"SOFTWARE\Microsoft\EdgeUpdate\Clients\\" + guid,
+    ]
+    
+    for hkey in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        for path in paths:
+            for flags in (0, winreg.KEY_WOW64_32KEY, winreg.KEY_WOW64_64KEY):
+                try:
+                    with winreg.OpenKey(hkey, path, 0, winreg.KEY_READ | flags) as key:
+                        pv, _ = winreg.QueryValueEx(key, "pv")
+                        if pv and str(pv).strip():
+                            return True
+                except OSError:
+                    continue
+    return False
+
+
+def _show_confirm_message_win(title: str, message: str) -> bool:
+    """在 Windows 上显示带有 确定/取消 的警告对话框。确定返回 True，取消返回 False。"""
+    try:
+        import ctypes
+        # MB_OKCANCEL = 0x1 | MB_ICONWARNING = 0x30
+        res = ctypes.windll.user32.MessageBoxW(0, message, title, 0x1 | 0x30)
+        return res == 1
+    except Exception:
+        return True
+
+
 def main():
     if os.environ.get("JARDIFF_SELFCHECK") == "1":
         sys.exit(_selfcheck())
+
+    if sys.platform == "win32":
+        if not _check_webview2_on_windows():
+            msg = (
+                "检测到您的系统未安装 Microsoft Edge WebView2 运行时，JarDiff 启动可能白屏或闪退。\n\n"
+                "建议前往微软官网下载并安装 WebView2 Runtime（常青引导程序）后重试：\n"
+                "https://developer.microsoft.com/microsoft-edge/webview2/\n\n"
+                "是否仍要尝试启动？"
+            )
+            if not _show_confirm_message_win("缺少 WebView2 运行时", msg):
+                sys.exit(0)
 
     api = JarDiffApi()
     index = _index_path()

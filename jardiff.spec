@@ -9,7 +9,7 @@
 import os
 import sys
 
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files, collect_dynamic_libs
 
 IS_WIN = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
@@ -28,11 +28,22 @@ datas += collect_data_files("webview")              # pywebview 自带资源
 hiddenimports = []
 hiddenimports += collect_submodules("webview")
 hiddenimports += ["jar_diff"]
+
+binaries = []
+
 if IS_WIN:
     # Windows 使用 Edge WebView2(EdgeChromium)，依赖 pythonnet(clr)
-    hiddenimports += ["clr"]
+    hiddenimports += ["clr", "pythonnet"]
     try:
         hiddenimports += collect_submodules("clr_loader")
+    except Exception:
+        pass
+    # 强制收集 clr_loader 和 pythonnet 的动态库与数据文件，解决绿色版 DLL 缺失问题
+    try:
+        datas += collect_data_files("clr_loader")
+        datas += collect_data_files("pythonnet")
+        binaries += collect_dynamic_libs("clr_loader")
+        binaries += collect_dynamic_libs("pythonnet")
     except Exception:
         pass
 
@@ -41,7 +52,7 @@ ICON = "jardiff_app/icon.ico" if IS_WIN else "jardiff_app/icon.icns"
 a = Analysis(
     ["jardiff_main.py"],
     pathex=[],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
