@@ -16,6 +16,14 @@ import subprocess
 import sys
 import tempfile
 
+# Windows 控制台/CI 默认非 UTF-8（cp1252/cp936），中文 print 会抛 UnicodeEncodeError，
+# 这里强制 stdout/stderr 用 UTF-8，跨平台一致。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from PIL import Image, ImageDraw, ImageFilter
 
 SIZE = 1024          # 画布
