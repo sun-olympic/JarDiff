@@ -7,6 +7,7 @@ REM  如需生成安装程序(.exe installer)，再用 Inno Setup 编译 packagi
 REM ============================================================
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
+chcp 65001 >nul 2>nul
 
 echo [1/5] 检查 Python...
 where python >nul 2>nul
