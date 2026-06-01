@@ -164,7 +164,9 @@ class JarDiffApi:
                     old_entries = {k: v for k, v in old_entries.items() if filter_str in k}
                     new_entries = {k: v for k, v in new_entries.items() if filter_str in k}
 
-                added, removed, modified = jd.classify_entries(old_entries, new_entries)
+                added, removed, modified = jd.classify_entries(
+                    old_entries, new_entries, decompile=decompile, decompiler_jar=decompiler_jar
+                )
 
                 self._old_entries = old_entries
                 self._new_entries = new_entries

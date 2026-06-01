@@ -299,6 +299,8 @@ def unified_diff(a_text: str, b_text: str, a_label: str, b_label: str) -> str:
 def classify_entries(
     old_entries: dict[str, bytes],
     new_entries: dict[str, bytes],
+    decompile: bool = False,
+    decompiler_jar: str | None = None,
 ) -> tuple[list[str], list[str], list[str]]:
     old_keys = set(old_entries.keys())
     new_keys = set(new_entries.keys())
@@ -307,7 +309,24 @@ def classify_entries(
     removed = sorted(old_keys - new_keys)
     common = sorted(old_keys & new_keys)
 
-    modified = [f for f in common if md5(old_entries[f]) != md5(new_entries[f])]
+    # 1. 预筛选：初步根据二进制 MD5 筛选有差异的文件
+    potential_modified = [f for f in common if md5(old_entries[f]) != md5(new_entries[f])]
+
+    # 2. 精确过滤：如果启用了反编译或属于文本文件，比对反编译/解码后的文本内容，剔除字节码变化但源码一致的误报
+    modified = []
+    for f in potential_modified:
+        if decompile or is_text_file(f):
+            old_text, _ = render_entry_text(f, old_entries[f], decompile, decompiler_jar)
+            new_text, _ = render_entry_text(f, new_entries[f], decompile, decompiler_jar)
+            if old_text is not None and new_text is not None:
+                # 规范化：去除行尾空白，忽略空行，使比对更鲁棒
+                old_norm = "\n".join(line.rstrip() for line in old_text.splitlines() if line.strip())
+                new_norm = "\n".join(line.rstrip() for line in new_text.splitlines() if line.strip())
+                if old_norm == new_norm:
+                    continue  # 文本内容完全相同，排除误报
+
+        modified.append(f)
+
     return added, removed, modified
 
 
@@ -557,7 +576,9 @@ def run_comparison(old_entries: dict[str, bytes], new_entries: dict[str, bytes],
         old_entries = {k: v for k, v in old_entries.items() if pat in k}
         new_entries = {k: v for k, v in new_entries.items() if pat in k}
 
-    added, removed, modified = classify_entries(old_entries, new_entries)
+    added, removed, modified = classify_entries(
+        old_entries, new_entries, decompile=args.decompile, decompiler_jar=args.decompiler
+    )
 
     # 统计
     print(colored(f"\n📊 变更总览", COLOR_BOLD))
