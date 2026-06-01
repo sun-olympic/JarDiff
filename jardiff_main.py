@@ -26,6 +26,31 @@ def show_error_message(title: str, message: str) -> None:
         print(f"[{title}] {message}", file=sys.stderr)
 
 
+def unblock_directory(directory: str) -> None:
+    """递归清除目录中所有 .dll 和 .pyd 文件的 Zone.Identifier（Mark of the Web），
+    解决 Windows 绿色版从网络下载解压后，由于系统安全拦截导致的 Python.Runtime.dll 加载失败问题。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.lower().endswith((".dll", ".pyd")):
+                    filepath = os.path.join(root, file)
+                    try:
+                        # 尝试删除 NTFS 备用数据流 Zone.Identifier
+                        os.remove(filepath + ":Zone.Identifier")
+                    except OSError:
+                        pass
+    except Exception:
+        pass
+
+
+# 针对 Windows 绿色版从网络下载解压后，各 DLL 被系统标记 Zone.Identifier 导致加载失败的问题，
+# 在载入任何 pywebview / pythonnet 依赖前，递归清除解压目录中所有 DLL 的 Zone.Identifier。
+if getattr(sys, "frozen", False) and sys.platform == "win32":
+    unblock_directory(os.path.dirname(sys.executable))
+
 # 针对 Python 3.8+ Windows 平台打包，需将 sys._MEIPASS 加进 DLL 搜索路径，
 # 否则 pythonnet 和 clr_loader 将无法正确加载 ClrLoader.dll 和 Python.Runtime.dll
 if getattr(sys, "frozen", False):
