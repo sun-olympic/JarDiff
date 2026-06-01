@@ -1,13 +1,12 @@
 # JarDiff — 跨平台 JAR 包变更对比工具 (GUI & CLI)
 
-对比两个 JAR 文件变化（主要针对相同包不同版本之间的差异）。
-
-#### 界面效果图
-<img width="1281" height="821" alt="image" src="https://github.com/user-attachments/assets/cc002d67-9383-40ec-b956-3fe7390256ef" />
-
 `JarDiff` 是一个功能强大、美观且易用的 JAR 包差异对比工具，旨在解决 Java 开发人员在版本升级、依赖变更或排查问题时，需要精确对比两个 JAR 包代码差异的痛点。
 
 它包含**桌面图形界面 (GUI)** 与 **命令行工具 (CLI)** 两个版本，支持本地 JAR、远程 URL 以及 Maven 坐标三种来源。
+
+
+## 界面效果图
+<img width="1281" height="821" alt="image" src="https://github.com/user-attachments/assets/cc002d67-9383-40ec-b956-3fe7390256ef" />
 
 ---
 
