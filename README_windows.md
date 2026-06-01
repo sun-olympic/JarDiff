@@ -103,21 +103,23 @@ dist_installer\JarDiff-Setup-1.0.0.exe
 | 平台 | 打包命令 | 产物 |
 | --- | --- | --- |
 | Windows | `build_windows.ps1`（或 `build_windows.bat`）+ Inno Setup | `JarDiff.exe` / `JarDiff-Setup-*.exe` |
-| macOS | `pyinstaller --noconfirm jardiff.spec` | `JarDiff.app` |
+| macOS | `pyinstaller --noconfirm jardiff.spec`（+ ad-hoc 签名打 DMG） | `JarDiff.app` / `JarDiff.dmg` |
 
 源码跨平台共用（`jar_diff.py` + `jardiff_app/` + 内置 Monaco），功能一致。
-macOS 的签名 / 公证 / DMG 发布流程为内部流程，不在本公开仓库中。
+
+> macOS 的 DMG 用 **ad-hoc 匿名签名**（`codesign --sign -`，无需任何证书）。
+> 正式的 Developer ID 签名 / 公证发布属于私有流程，不在本公开仓库中。
 
 ---
 
-## 七、CI 自动出 Windows 包
+## 七、CI 一次构建，mac/win 同时出包
 
-仓库内置 GitHub Actions 流水线 `.github/workflows/build.yml`，在云端自动产出
-Windows 安装包与绿色版，无需本地准备打包环境。
+仓库内置 GitHub Actions 流水线 `.github/workflows/build.yml`，在云端**同时**产出
+macOS DMG 与 Windows 安装包，无需本地准备双平台环境。
 
 ### 触发方式
 
-- **手动**：GitHub 仓库 → Actions → "Build JarDiff (windows)" → Run workflow。
+- **手动**：GitHub 仓库 → Actions → "Build JarDiff (mac + windows)" → Run workflow。
 - **打 tag 自动发布 Release**：
 
 ```bash
@@ -126,6 +128,7 @@ git push origin v1.0.0
 ```
 
 会自动构建并把以下产物上传到 Release：
+- `JarDiff.dmg`（macOS，ad-hoc 匿名签名的未公证版）
 - `JarDiff-Setup-1.0.0.exe`（Windows 安装程序，安装时自动装依赖）
 - `JarDiff-portable.zip`（Windows 免安装绿色版）
 
@@ -133,8 +136,12 @@ git push origin v1.0.0
 
 | Job | Runner | 步骤 |
 | --- | --- | --- |
+| `build-macos` | `macos-14` | 建 venv → 装依赖 → `make_icon.py` → PyInstaller 打包 → ad-hoc 签名 → 打 DMG → 上传 |
 | `build-windows` | `windows-latest` | 装依赖 → `make_icon.py` 生成 ico → PyInstaller 打包 → choco 装 Inno Setup → 编译安装程序 → 上传 exe/zip |
 | `release` | `ubuntu-latest` | 仅打 tag 时：汇总产物发布到 GitHub Release |
+
+> macOS 的 DMG 为 ad-hoc 未公证版，对方首次运行需执行一次
+> `xattr -dr com.apple.quarantine /Applications/JarDiff.app`（或右键→打开）放行。
 
 ### ⚠️ 重要：workflow 必须位于"仓库根"
 
