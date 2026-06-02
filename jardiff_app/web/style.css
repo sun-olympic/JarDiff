@@ -273,4 +273,15 @@ button.swap:hover {
   animation: spin .8s linear infinite;
 }
 
+.progress {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+  opacity: .95;
+}
+.progress.hidden { display: none; }
+
 @keyframes spin { to { transform: rotate(360deg); } }

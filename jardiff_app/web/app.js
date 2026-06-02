@@ -11,6 +11,63 @@ function setStatus(text, busy) {
   $("spinner").classList.toggle("hidden", !busy);
 }
 
+/* ---------- 下载进度（轮询后端 get_progress 实时展示） ---------- */
+
+let progressTimer = null;
+
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
+  return (n / 1024 / 1024 / 1024).toFixed(2) + " GB";
+}
+
+function renderProgress(p) {
+  const el = $("progress");
+  if (!p || !p.active) {
+    el.classList.add("hidden");
+    el.textContent = "";
+    return;
+  }
+  const parts = [];
+  if (p.phase) parts.push(p.phase);
+  if (p.name) parts.push(p.name);
+  let head = parts.join(" · ");
+  let detail;
+  if (p.total > 0) {
+    const pct = Math.min(100, Math.floor((p.downloaded / p.total) * 100));
+    detail = `${fmtBytes(p.downloaded)} / ${fmtBytes(p.total)} (${pct}%)`;
+  } else {
+    detail = `${fmtBytes(p.downloaded)}`;
+  }
+  if (p.speed > 0) detail += ` · ${fmtBytes(p.speed)}/s`;
+  el.textContent = `↓ ${head} — ${detail}`;
+  el.classList.remove("hidden");
+}
+
+async function pollProgress() {
+  try {
+    const p = await window.pywebview.api.get_progress();
+    renderProgress(p);
+  } catch (e) {
+    /* 忽略单次轮询失败 */
+  }
+}
+
+function startProgressPolling() {
+  stopProgressPolling();
+  progressTimer = setInterval(pollProgress, 250);
+}
+
+function stopProgressPolling() {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+  renderProgress(null);
+}
+
 /* ---------- Monaco 加载（本地 vendor 优先，失败回退 CDN） ---------- */
 
 function loadScript(src) {
@@ -157,6 +214,7 @@ async function doCompare() {
   setStatus("正在下载并比较…", true);
   $("filelist").innerHTML = "";
   $("summary").innerHTML = '<div class="hint">比较中…</div>';
+  startProgressPolling();
 
   try {
     const res = await window.pywebview.api.compare(payload);
@@ -182,6 +240,7 @@ async function doCompare() {
     $("summary").innerHTML = '<div class="hint">异常：' + escapeHtml(String(e)) + "</div>";
     setStatus("比较异常", false);
   } finally {
+    stopProgressPolling();
     $("compareBtn").disabled = false;
   }
 }

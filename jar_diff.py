@@ -12,6 +12,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -74,10 +75,13 @@ def _build_auth_header(user: str | None, password: str | None) -> dict[str, str]
 
 
 def download_file(url: str, dest_path: str, user: str | None = None,
-                  password: str | None = None, insecure: bool = False) -> None:
+                  password: str | None = None, insecure: bool = False,
+                  progress_cb=None) -> None:
     """下载远程文件到本地路径。
 
-    insecure=True 时跳过 HTTPS 证书校验，用于自签名 / 企业 CA 的内网仓库。"""
+    insecure=True 时跳过 HTTPS 证书校验，用于自签名 / 企业 CA 的内网仓库。
+    progress_cb(url, downloaded, total, speed) 若提供，则在下载过程中周期性回调，
+    total 为 0 表示服务端未返回 Content-Length，speed 单位为字节/秒。"""
     headers = {"User-Agent": "jar-diff/1.0"}
     headers.update(_build_auth_header(user, password))
     req = urllib.request.Request(url, headers=headers)
@@ -85,7 +89,30 @@ def download_file(url: str, dest_path: str, user: str | None = None,
     try:
         with urllib.request.urlopen(req, timeout=60, context=context) as resp, \
                 open(dest_path, "wb") as out:
-            shutil.copyfileobj(resp, out)
+            total = int(resp.headers.get("Content-Length") or 0)
+            downloaded = 0
+            start = time.monotonic()
+            last_report = 0.0
+            if progress_cb:
+                progress_cb(url, 0, total, 0.0)
+            while True:
+                buf = resp.read(65536)
+                if not buf:
+                    break
+                out.write(buf)
+                downloaded += len(buf)
+                if progress_cb:
+                    now = time.monotonic()
+                    # 限流：最多每 100ms 上报一次，避免过于频繁
+                    if now - last_report >= 0.1:
+                        elapsed = now - start
+                        speed = downloaded / elapsed if elapsed > 0 else 0.0
+                        progress_cb(url, downloaded, total, speed)
+                        last_report = now
+            if progress_cb:
+                elapsed = time.monotonic() - start
+                speed = downloaded / elapsed if elapsed > 0 else 0.0
+                progress_cb(url, downloaded, total or downloaded, speed)
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"下载失败 ({e.code} {e.reason}): {url}") from e
     except urllib.error.URLError as e:
@@ -127,6 +154,7 @@ def resolve_to_local_jar(
     user: str | None,
     password: str | None,
     insecure: bool = False,
+    progress_cb=None,
 ) -> str:
     """将来源（本地路径 / URL / Maven 坐标）解析为本地 JAR 文件路径。"""
     if os.path.isfile(source):
@@ -141,7 +169,7 @@ def resolve_to_local_jar(
 
     dest = os.path.join(tmp_dir, f"{prefix}.jar")
     print(colored(f"  ↓ 下载 {url}", COLOR_CYAN))
-    download_file(url, dest, user, password, insecure)
+    download_file(url, dest, user, password, insecure, progress_cb)
     size_kb = os.path.getsize(dest) / 1024
     print(colored(f"    完成 ({size_kb:.1f} KB) → {dest}", COLOR_CYAN))
     return dest
@@ -149,7 +177,7 @@ def resolve_to_local_jar(
 
 def resolve_decompiler(value: str, repo_base: str,
                        user: str | None, password: str | None,
-                       insecure: bool = False) -> str:
+                       insecure: bool = False, progress_cb=None) -> str:
     """解析 --decompiler 参数为可用的反编译器 jar 路径。
     - 已存在的文件：直接使用。
     - 'cfr' / 'auto'：自动下载 CFR 到缓存目录。
@@ -178,12 +206,12 @@ def resolve_decompiler(value: str, repo_base: str,
     url = maven_coord_to_url(CFR_COORD, repo_base)
     print(colored(f"  ↓ 自动下载反编译器 CFR: {url}", COLOR_CYAN))
     try:
-        download_file(url, dest, user, password, insecure)
+        download_file(url, dest, user, password, insecure, progress_cb)
     except RuntimeError:
         # 私服没有时回退到 Maven 中央仓库
         fallback = maven_coord_to_url(CFR_COORD, "https://repo1.maven.org/maven2")
         print(colored(f"    私服未命中，改用中央仓库: {fallback}", COLOR_YELLOW))
-        download_file(fallback, dest, None, None)
+        download_file(fallback, dest, None, None, False, progress_cb)
     size_kb = os.path.getsize(dest) / 1024
     print(colored(f"    完成 ({size_kb:.1f} KB) → {dest}", COLOR_CYAN))
     return dest

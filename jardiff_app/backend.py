@@ -90,6 +90,9 @@ class JarDiffApi:
         self._decompile = False
         self._decompiler_jar: str | None = None
         self._tmp_dir: str | None = None
+        # 下载进度状态（独立锁，便于在 compare 运行期间被 get_progress 轮询）
+        self._progress_lock = threading.Lock()
+        self._progress: dict = self._empty_progress()
         # 启动时清理历史遗留的临时目录（上次/崩溃残留），并注册退出清理
         _cleanup_orphan_tmp(exclude=None)
         atexit.register(self._cleanup_tmp)
@@ -100,6 +103,40 @@ class JarDiffApi:
         if self._tmp_dir:
             shutil.rmtree(self._tmp_dir, ignore_errors=True)
             self._tmp_dir = None
+
+    @staticmethod
+    def _empty_progress() -> dict:
+        return {"active": False, "phase": "", "name": "",
+                "downloaded": 0, "total": 0, "speed": 0.0}
+
+    def _set_progress(self, **kw):
+        with self._progress_lock:
+            self._progress.update(kw)
+
+    def _reset_progress(self):
+        with self._progress_lock:
+            self._progress = self._empty_progress()
+
+    def _make_progress_cb(self, phase: str, name: str):
+        """生成传给 jar_diff.download_file 的进度回调（线程安全更新 self._progress）。"""
+        def cb(url, downloaded, total, speed):
+            self._set_progress(active=True, phase=phase, name=name,
+                               downloaded=int(downloaded), total=int(total),
+                               speed=float(speed))
+        return cb
+
+    @staticmethod
+    def _source_label(src: str) -> str:
+        """把来源（Maven 坐标 / URL / 路径）转成简短可读的文件名。"""
+        src = (src or "").strip()
+        if jd.looks_like_maven_coord(src):
+            parts = src.split(":")
+            name = f"{parts[1]}-{parts[2]}"
+            if len(parts) >= 4:
+                name += f"-{parts[3]}"
+            return name + ".jar"
+        # URL / 路径取末段
+        return src.rstrip("/").split("/")[-1] or src
 
     def _resolve_decompiler(self, mode: str, repo: str,
                             user: str | None, password: str | None,
@@ -112,7 +149,8 @@ class JarDiffApi:
         if mode == "javap":
             return True, None
         # cfr / auto / 自定义路径 → 交给 jar_diff 解析（cfr 会自动下载）
-        jar = jd.resolve_decompiler(mode, repo, user, password, insecure)
+        cb = self._make_progress_cb("下载反编译器 CFR", "cfr.jar")
+        jar = jd.resolve_decompiler(mode, repo, user, password, insecure, cb)
         return True, jar
 
     # ---------- 暴露给前端的方法 ----------
@@ -139,6 +177,7 @@ class JarDiffApi:
             ignore_meta = bool(payload.get("ignoreMeta"))
             insecure = bool(payload.get("insecure"))
 
+            self._reset_progress()
             with self._lock:
                 self._cleanup_tmp()
                 self._tmp_dir = tempfile.mkdtemp(prefix=TMP_PREFIX)
@@ -148,9 +187,11 @@ class JarDiffApi:
                         decompiler_mode, repo, user, password, insecure)
 
                     old_path = jd.resolve_to_local_jar(
-                        old_src, self._tmp_dir, "old", repo, user, password, insecure)
+                        old_src, self._tmp_dir, "old", repo, user, password, insecure,
+                        self._make_progress_cb("下载旧版 JAR", self._source_label(old_src)))
                     new_path = jd.resolve_to_local_jar(
-                        new_src, self._tmp_dir, "new", repo, user, password, insecure)
+                        new_src, self._tmp_dir, "new", repo, user, password, insecure,
+                        self._make_progress_cb("下载新版 JAR", self._source_label(new_src)))
 
                     old_entries = jd.read_jar_entries(old_path)
                     new_entries = jd.read_jar_entries(new_path)
@@ -173,6 +214,7 @@ class JarDiffApi:
                 self._decompile = decompile
                 self._decompiler_jar = decompiler_jar
 
+            self._set_progress(active=False)
             files = (
                 [{"path": f, "status": "modified"} for f in modified]
                 + [{"path": f, "status": "added"} for f in added]
@@ -190,6 +232,7 @@ class JarDiffApi:
             return {"ok": True, "summary": summary, "files": files,
                     "log": log_buf.getvalue()}
         except Exception as e:
+            self._reset_progress()
             return {"ok": False,
                     "error": f"{e}",
                     "log": log_buf.getvalue() + "\n" + traceback.format_exc()}
@@ -229,6 +272,11 @@ class JarDiffApi:
             }
         except Exception as e:
             return {"ok": False, "error": f"{e}"}
+
+    def get_progress(self) -> dict:
+        """返回当前下载进度快照，供前端轮询展示。"""
+        with self._progress_lock:
+            return dict(self._progress)
 
     def default_repo(self) -> str:
         return DEFAULT_PUBLIC_REPO
