@@ -16,6 +16,10 @@ function setStatus(text, busy) {
 let progressTimer = null;
 let liveListKey = "";  // 实时列表的指纹，变化时才重绘，避免无谓刷新
 
+// 文件列表缓存 + 当前搜索词（用于左侧列表的模糊过滤）
+let lastFiles = [];
+let searchQuery = "";
+
 function fmtBytes(n) {
   n = Number(n) || 0;
   if (n < 1024) return n + " B";
@@ -83,7 +87,8 @@ async function pollProgress() {
       const key = p.files.length + ":" + (p.active ? "1" : "0");
       if (key !== liveListKey) {
         liveListKey = key;
-        renderFileList(p.files, $("filter").value.trim());
+        lastFiles = p.files;
+        refreshFileList();
         renderLiveSummary(p);
       }
     }
@@ -252,6 +257,7 @@ async function doCompare() {
   $("filelist").innerHTML = "";
   $("summary").innerHTML = '<div class="hint">比较中…</div>';
   liveListKey = "";
+  lastFiles = [];
   startProgressPolling();
 
   try {
@@ -264,8 +270,9 @@ async function doCompare() {
       return;
     }
     renderSummary(res.summary);
+    lastFiles = res.files;
+    refreshFileList();
     const fv = $("filter").value.trim();
-    renderFileList(res.files, fv);
     const s = res.summary;
     const changes = s.modified + s.added + s.removed;
     if (s.oldCount === 0 && s.newCount === 0 && fv) {
@@ -293,6 +300,43 @@ function renderSummary(s) {
 }
 
 const STATUS_BADGE = { modified: "M", added: "A", removed: "D" };
+
+/* ---------- 模糊匹配（VS Code 风格：按序匹配字符） ---------- */
+// 输入查询的字符必须在目标字符串中按相同顺序依次出现（忽略大小写、空白）
+function fuzzyMatchIndices(text, query) {
+  if (!query) return [];
+  const t = String(text).toLowerCase();
+  const q = String(query).toLowerCase().replace(/\s+/g, "");
+  if (!q) return [];
+  const idx = [];
+  let ti = 0;
+  for (let qi = 0; qi < q.length; qi++) {
+    const c = q[qi];
+    const pos = t.indexOf(c, ti);
+    if (pos < 0) return null;
+    idx.push(pos);
+    ti = pos + 1;
+  }
+  return idx;
+}
+
+function fuzzyMatch(text, query) {
+  return fuzzyMatchIndices(text, query) !== null;
+}
+
+// 把匹配字符包裹 <mark>，其余 escapeHtml
+function highlightFuzzy(text, query) {
+  const idx = fuzzyMatchIndices(text, query);
+  if (!idx || !idx.length) return escapeHtml(text);
+  const set = new Set(idx);
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    out += set.has(i)
+      ? `<mark>${escapeHtml(text[i])}</mark>`
+      : escapeHtml(text[i]);
+  }
+  return out;
+}
 
 /* 把扁平文件列表构建成目录树 */
 function buildTree(files) {
@@ -331,15 +375,16 @@ function countChanges(node) {
   return n;
 }
 
-function renderNode(node, container, depth) {
+function renderNode(node, container, depth, query) {
   Object.keys(node.children).sort().forEach((name) => {
     const child = node.children[name];
     const row = document.createElement("div");
     row.className = "tree-row tree-dir";
     row.style.paddingLeft = (depth * 12 + 6) + "px";
+    // 目录名（合并后可能形如 com/example/app）也参与高亮
     row.innerHTML =
       `<span class="twisty">▾</span>` +
-      `<span class="dir-name">${escapeHtml(name)}</span>` +
+      `<span class="dir-name">${query ? highlightFuzzy(name, query) : escapeHtml(name)}</span>` +
       `<span class="dir-count">${countChanges(child)}</span>`;
     const kids = document.createElement("div");
     kids.className = "tree-kids";
@@ -349,7 +394,7 @@ function renderNode(node, container, depth) {
     });
     container.appendChild(row);
     container.appendChild(kids);
-    renderNode(child, kids, depth + 1);
+    renderNode(child, kids, depth + 1, query);
   });
 
   node.files
@@ -360,26 +405,46 @@ function renderNode(node, container, depth) {
       item.style.paddingLeft = (depth * 12 + 16) + "px";
       item.innerHTML =
         `<span class="badge">${STATUS_BADGE[f.status]}</span>` +
-        `<span class="name">${escapeHtml(f.name)}</span>`;
+        `<span class="name">${query ? highlightFuzzy(f.name, query) : escapeHtml(f.name)}</span>`;
       item.title = f.path;
       item.addEventListener("click", () => selectFile(item, f.path));
       container.appendChild(item);
     });
 }
 
-function renderFileList(files, filterValue) {
+function renderFileList(files, filterValue, query, totalBeforeSearch) {
   const list = $("filelist");
   list.innerHTML = "";
   if (!files.length) {
-    const msg = filterValue
-      ? `过滤 “${escapeHtml(filterValue)}” 下无差异/无匹配`
-      : "无差异";
+    let msg;
+    if (query) {
+      msg = `搜索 “${escapeHtml(query)}” 无匹配（共 ${totalBeforeSearch || 0} 个差异）`;
+    } else if (filterValue) {
+      msg = `过滤 “${escapeHtml(filterValue)}” 下无差异/无匹配`;
+    } else {
+      msg = "无差异";
+    }
     list.innerHTML = `<div class="group-title">${msg}</div>`;
     return;
   }
   const root = buildTree(files);
   compactTree(root);
-  renderNode(root, list, 0);
+  renderNode(root, list, 0, query || "");
+}
+
+/* 根据 lastFiles + searchQuery 刷新左侧列表（并同步搜索计数） */
+function refreshFileList() {
+  const q = searchQuery;
+  const filtered = q ? lastFiles.filter((f) => fuzzyMatch(f.path, q)) : lastFiles;
+  renderFileList(filtered, $("filter").value.trim(), q, lastFiles.length);
+
+  const cnt = $("searchCount");
+  if (q) {
+    cnt.textContent = `${filtered.length} / ${lastFiles.length}`;
+    cnt.classList.remove("hidden");
+  } else {
+    cnt.classList.add("hidden");
+  }
 }
 
 /* ---------- 选择文件 → 内嵌 diff ---------- */
@@ -435,6 +500,20 @@ window.addEventListener("DOMContentLoaded", async () => {
   $("swapBtn").addEventListener("click", swapJars);
   ["old", "new", "filter"].forEach((id) =>
     $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") doCompare(); }));
+
+  // 左侧列表模糊搜索（轻量防抖，避免实时对比期间频繁重绘）
+  let searchTimer = null;
+  $("search").addEventListener("input", (e) => {
+    const v = e.target.value;
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      searchQuery = (v || "").trim();
+      refreshFileList();
+    }, 80);
+  });
+  $("search").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.target.value = ""; searchQuery = ""; refreshFileList(); }
+  });
 
   setStatus("加载编辑器内核…", true);
   try {

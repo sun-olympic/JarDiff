@@ -149,9 +149,50 @@ button.swap:hover {
 .summary .stat-removed { color: var(--red); }
 .summary .stat-modified { color: var(--yellow); }
 
+.search-box {
+  position: relative;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.search-box input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 56px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  outline: none;
+}
+.search-box input:focus {
+  border-color: #3b82f6;
+}
+.search-count {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--fg-dim);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.search-count.hidden { display: none; }
+
 .filelist {
   flex: 1;
   overflow-y: auto;
+}
+
+/* 模糊搜索高亮 */
+.tree-file mark,
+.tree-dir mark {
+  background: rgba(250, 204, 21, .35);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 .group-title {
