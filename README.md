@@ -6,7 +6,7 @@
 
 
 ## 界面效果图
-<img width="1281" height="821" alt="image" src="https://github.com/user-attachments/assets/cc002d67-9383-40ec-b956-3fe7390256ef" />
+<img width="2554" height="1642" alt="image" src="https://github.com/user-attachments/assets/5afe14c3-0945-455c-ac19-35c9d04167da" />
 
 ---
 
