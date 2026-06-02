@@ -181,6 +181,55 @@ button.swap:hover {
 }
 .search-count.hidden { display: none; }
 
+/* 按状态类型筛选（chips） */
+.type-filter {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 8px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+.type-filter .chip {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--fg-dim);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity .12s, border-color .12s, color .12s;
+}
+.type-filter .chip .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.type-filter .chip-modified .dot { background: var(--yellow); }
+.type-filter .chip-added    .dot { background: var(--green); }
+.type-filter .chip-removed  .dot { background: var(--red); }
+.type-filter .chip-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  opacity: .85;
+}
+.type-filter .chip.active {
+  color: var(--fg);
+  border-color: var(--border);
+}
+.type-filter .chip-modified.active { color: var(--yellow); border-color: rgba(220,220,170,.6); }
+.type-filter .chip-added.active    { color: var(--green);  border-color: rgba(78,201,176,.6); }
+.type-filter .chip-removed.active  { color: var(--red);    border-color: rgba(244,135,113,.6); }
+.type-filter .chip:not(.active) { opacity: .45; }
+.type-filter .chip:hover { opacity: 1; }
+
 .filelist {
   flex: 1;
   overflow-y: auto;

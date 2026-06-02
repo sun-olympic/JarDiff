@@ -19,6 +19,8 @@ let liveListKey = "";  // 实时列表的指纹，变化时才重绘，避免无
 // 文件列表缓存 + 当前搜索词（用于左侧列表的模糊过滤）
 let lastFiles = [];
 let searchQuery = "";
+// 按状态类型筛选（chip 切换）：true=显示，false=隐藏
+const typeFilter = { modified: true, added: true, removed: true };
 
 function fmtBytes(n) {
   n = Number(n) || 0;
@@ -412,13 +414,15 @@ function renderNode(node, container, depth, query) {
     });
 }
 
-function renderFileList(files, filterValue, query, totalBeforeSearch) {
+function renderFileList(files, filterValue, query, totalBeforeSearch, hiddenAllByType) {
   const list = $("filelist");
   list.innerHTML = "";
   if (!files.length) {
     let msg;
     if (query) {
-      msg = `搜索 “${escapeHtml(query)}” 无匹配（共 ${totalBeforeSearch || 0} 个差异）`;
+      msg = `搜索 “${escapeHtml(query)}” 无匹配（当前类型可见 ${totalBeforeSearch || 0} 个）`;
+    } else if (hiddenAllByType) {
+      msg = "当前类型筛选下没有差异，点击上方 chip 显示其他类型";
     } else if (filterValue) {
       msg = `过滤 “${escapeHtml(filterValue)}” 下无差异/无匹配`;
     } else {
@@ -432,19 +436,39 @@ function renderFileList(files, filterValue, query, totalBeforeSearch) {
   renderNode(root, list, 0, query || "");
 }
 
-/* 根据 lastFiles + searchQuery 刷新左侧列表（并同步搜索计数） */
+/* 根据 lastFiles + searchQuery + typeFilter 刷新左侧列表（并同步计数） */
 function refreshFileList() {
+  // 1) 按状态类型筛选
+  const typed = lastFiles.filter((f) => typeFilter[f.status]);
+  // 2) 再叠加模糊搜索
   const q = searchQuery;
-  const filtered = q ? lastFiles.filter((f) => fuzzyMatch(f.path, q)) : lastFiles;
-  renderFileList(filtered, $("filter").value.trim(), q, lastFiles.length);
+  const filtered = q ? typed.filter((f) => fuzzyMatch(f.path, q)) : typed;
+
+  const hiddenAllByType = lastFiles.length > 0 && typed.length === 0;
+  renderFileList(filtered, $("filter").value.trim(), q, typed.length, hiddenAllByType);
 
   const cnt = $("searchCount");
   if (q) {
-    cnt.textContent = `${filtered.length} / ${lastFiles.length}`;
+    cnt.textContent = `${filtered.length} / ${typed.length}`;
     cnt.classList.remove("hidden");
   } else {
     cnt.classList.add("hidden");
   }
+
+  // 3) 更新 chip 上的计数（基于原始全集 lastFiles）
+  let m = 0, a = 0, d = 0;
+  lastFiles.forEach((f) => {
+    if (f.status === "modified") m++;
+    else if (f.status === "added") a++;
+    else if (f.status === "removed") d++;
+  });
+  const setCount = (k, v) => {
+    const el = document.querySelector(`#typeFilter .chip-count[data-count="${k}"]`);
+    if (el) el.textContent = v;
+  };
+  setCount("modified", m);
+  setCount("added", a);
+  setCount("removed", d);
 }
 
 /* ---------- 选择文件 → 内嵌 diff ---------- */
@@ -513,6 +537,28 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
   $("search").addEventListener("keydown", (e) => {
     if (e.key === "Escape") { e.target.value = ""; searchQuery = ""; refreshFileList(); }
+  });
+
+  // 状态类型 chip：点击切换显示/隐藏；右键“仅显示当前类型”
+  document.querySelectorAll("#typeFilter .chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.type;
+      typeFilter[k] = !typeFilter[k];
+      btn.classList.toggle("active", typeFilter[k]);
+      // 全部关闭时回退为全部开启，避免“什么都看不到”
+      if (!typeFilter.modified && !typeFilter.added && !typeFilter.removed) {
+        Object.keys(typeFilter).forEach((kk) => { typeFilter[kk] = true; });
+        document.querySelectorAll("#typeFilter .chip").forEach((b) => b.classList.add("active"));
+      }
+      refreshFileList();
+    });
+    btn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      Object.keys(typeFilter).forEach((kk) => { typeFilter[kk] = kk === btn.dataset.type; });
+      document.querySelectorAll("#typeFilter .chip").forEach((b) =>
+        b.classList.toggle("active", b.dataset.type === btn.dataset.type));
+      refreshFileList();
+    });
   });
 
   setStatus("加载编辑器内核…", true);

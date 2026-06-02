@@ -73,6 +73,17 @@
           <input id="search" type="search" placeholder="搜索类名（模糊匹配）" autocomplete="off" spellcheck="false" />
           <span id="searchCount" class="search-count hidden"></span>
         </div>
+        <div class="type-filter" id="typeFilter">
+          <button type="button" class="chip chip-modified active" data-type="modified" title="点击隐藏/显示「修改」">
+            <span class="dot"></span>修改 <span class="chip-count" data-count="modified">0</span>
+          </button>
+          <button type="button" class="chip chip-added active" data-type="added" title="点击隐藏/显示「新增」">
+            <span class="dot"></span>新增 <span class="chip-count" data-count="added">0</span>
+          </button>
+          <button type="button" class="chip chip-removed active" data-type="removed" title="点击隐藏/显示「删除」">
+            <span class="dot"></span>删除 <span class="chip-count" data-count="removed">0</span>
+          </button>
+        </div>
         <div class="filelist" id="filelist"></div>
       </aside>
       <section class="editor-pane">
