@@ -285,3 +285,20 @@ button.swap:hover {
 .progress.hidden { display: none; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* “仍在对比中”指示点 */
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  vertical-align: middle;
+  animation: live-pulse 1s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .35; transform: scale(.7); }
+}

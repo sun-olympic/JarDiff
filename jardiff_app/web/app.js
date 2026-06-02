@@ -14,6 +14,7 @@ function setStatus(text, busy) {
 /* ---------- 下载进度（轮询后端 get_progress 实时展示） ---------- */
 
 let progressTimer = null;
+let liveListKey = "";  // 实时列表的指纹，变化时才重绘，避免无谓刷新
 
 function fmtBytes(n) {
   n = Number(n) || 0;
@@ -54,10 +55,38 @@ function renderProgress(p) {
   el.classList.remove("hidden");
 }
 
+function renderLiveSummary(p) {
+  const files = (p && p.files) || [];
+  let m = 0, a = 0, d = 0;
+  files.forEach((f) => {
+    if (f.status === "modified") m++;
+    else if (f.status === "added") a++;
+    else d++;
+  });
+  let head = "对比中…";
+  if (p && p.active && p.count > 0) {
+    head = `${p.phase || "对比中"} ${p.current}/${p.count}`;
+  }
+  $("summary").innerHTML =
+    `<div><span class="live-dot"></span>${escapeHtml(head)}</div>` +
+    `<div><span class="stat-modified">修改 ${m}</span> · ` +
+    `<span class="stat-added">新增 ${a}</span> · ` +
+    `<span class="stat-removed">删除 ${d}</span></div>`;
+}
+
 async function pollProgress() {
   try {
     const p = await window.pywebview.api.get_progress();
     renderProgress(p);
+    // 对比阶段：实时把已发现的差异列到左侧树，并显示“仍在对比”标识
+    if (p && p.kind === "compare" && Array.isArray(p.files)) {
+      const key = p.files.length + ":" + (p.active ? "1" : "0");
+      if (key !== liveListKey) {
+        liveListKey = key;
+        renderFileList(p.files, $("filter").value.trim());
+        renderLiveSummary(p);
+      }
+    }
   } catch (e) {
     /* 忽略单次轮询失败 */
   }
@@ -222,10 +251,12 @@ async function doCompare() {
   setStatus("正在下载并比较…", true);
   $("filelist").innerHTML = "";
   $("summary").innerHTML = '<div class="hint">比较中…</div>';
+  liveListKey = "";
   startProgressPolling();
 
   try {
     const res = await window.pywebview.api.compare(payload);
+    stopProgressPolling();  // 比较完成，停止轮询后用最终结果渲染（避免被末次轮询覆盖）
     if (!res.ok) {
       $("summary").innerHTML =
         '<div class="hint">出错：' + escapeHtml(res.error || "未知错误") + "</div>";

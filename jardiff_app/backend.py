@@ -93,6 +93,8 @@ class JarDiffApi:
         # 下载进度状态（独立锁，便于在 compare 运行期间被 get_progress 轮询）
         self._progress_lock = threading.Lock()
         self._progress: dict = self._empty_progress()
+        # 对比过程中实时累积的差异文件（供前端边对比边展示）
+        self._live_files: list[dict] = []
         # 启动时清理历史遗留的临时目录（上次/崩溃残留），并注册退出清理
         _cleanup_orphan_tmp(exclude=None)
         atexit.register(self._cleanup_tmp)
@@ -117,6 +119,7 @@ class JarDiffApi:
     def _reset_progress(self):
         with self._progress_lock:
             self._progress = self._empty_progress()
+            self._live_files = []
 
     def _make_progress_cb(self, phase: str, name: str):
         """生成传给 jar_diff.download_file 的进度回调（线程安全更新 self._progress）。"""
@@ -134,6 +137,13 @@ class JarDiffApi:
                                phase=stage_phase.get(stage, "对比文件"),
                                name=name, current=int(current), count=int(total),
                                downloaded=0, total=0, speed=0.0)
+        return cb
+
+    def _make_result_cb(self):
+        """生成传给 jar_diff.classify_entries 的结果回调：每确认一个差异即累积，供前端实时展示。"""
+        def cb(status, name):
+            with self._progress_lock:
+                self._live_files.append({"path": name, "status": status})
         return cb
 
     @staticmethod
@@ -218,7 +228,8 @@ class JarDiffApi:
 
                 added, removed, modified = jd.classify_entries(
                     old_entries, new_entries, decompile=decompile,
-                    decompiler_jar=decompiler_jar, progress_cb=self._make_compare_cb()
+                    decompiler_jar=decompiler_jar, progress_cb=self._make_compare_cb(),
+                    result_cb=self._make_result_cb()
                 )
 
                 self._old_entries = old_entries
@@ -286,9 +297,11 @@ class JarDiffApi:
             return {"ok": False, "error": f"{e}"}
 
     def get_progress(self) -> dict:
-        """返回当前下载进度快照，供前端轮询展示。"""
+        """返回当前进度快照（含已发现的差异文件），供前端轮询实时展示。"""
         with self._progress_lock:
-            return dict(self._progress)
+            snap = dict(self._progress)
+            snap["files"] = list(self._live_files)
+            return snap
 
     def default_repo(self) -> str:
         return DEFAULT_PUBLIC_REPO

@@ -330,12 +330,15 @@ def classify_entries(
     decompile: bool = False,
     decompiler_jar: str | None = None,
     progress_cb=None,
+    result_cb=None,
 ) -> tuple[list[str], list[str], list[str]]:
     """分类新增/删除/修改文件。
 
     progress_cb(stage, current, total, name) 若提供，则在对比过程中周期性回调：
       stage="scan"   逐个比对同名文件的二进制差异（预筛选）
       stage="refine" 逐个反编译/解码核对源码，剔除误报（CFR 模式下较慢）
+    result_cb(status, name) 若提供，则每确认一个差异即回调一次（status: added/removed/modified），
+      便于调用方边对比边实时展示结果。
     """
     old_keys = set(old_entries.keys())
     new_keys = set(new_entries.keys())
@@ -343,6 +346,13 @@ def classify_entries(
     added = sorted(new_keys - old_keys)
     removed = sorted(old_keys - new_keys)
     common = sorted(old_keys & new_keys)
+
+    # 新增/删除可立即确定，先回调出去
+    if result_cb:
+        for f in added:
+            result_cb("added", f)
+        for f in removed:
+            result_cb("removed", f)
 
     # 1. 预筛选：初步根据二进制 MD5 筛选有差异的文件
     potential_modified = []
@@ -370,6 +380,8 @@ def classify_entries(
                     continue  # 文本内容完全相同，排除误报
 
         modified.append(f)
+        if result_cb:
+            result_cb("modified", f)
 
     return added, removed, modified
 
