@@ -199,43 +199,47 @@ class JarDiffApi:
             insecure = bool(payload.get("insecure"))
 
             self._reset_progress()
+            # 短临界区：重建临时目录（不在整个对比期间持锁，否则 get_diff 会被阻塞）
             with self._lock:
                 self._cleanup_tmp()
                 self._tmp_dir = tempfile.mkdtemp(prefix=TMP_PREFIX)
+                tmp_dir = self._tmp_dir
 
-                with contextlib.redirect_stdout(log_buf):
-                    decompile, decompiler_jar = self._resolve_decompiler(
-                        decompiler_mode, repo, user, password, insecure)
+            with contextlib.redirect_stdout(log_buf):
+                decompile, decompiler_jar = self._resolve_decompiler(
+                    decompiler_mode, repo, user, password, insecure)
 
-                    old_path = jd.resolve_to_local_jar(
-                        old_src, self._tmp_dir, "old", repo, user, password, insecure,
-                        self._make_progress_cb("下载旧版 JAR", self._source_label(old_src)))
-                    new_path = jd.resolve_to_local_jar(
-                        new_src, self._tmp_dir, "new", repo, user, password, insecure,
-                        self._make_progress_cb("下载新版 JAR", self._source_label(new_src)))
+                old_path = jd.resolve_to_local_jar(
+                    old_src, tmp_dir, "old", repo, user, password, insecure,
+                    self._make_progress_cb("下载旧版 JAR", self._source_label(old_src)))
+                new_path = jd.resolve_to_local_jar(
+                    new_src, tmp_dir, "new", repo, user, password, insecure,
+                    self._make_progress_cb("下载新版 JAR", self._source_label(new_src)))
 
-                    old_entries = jd.read_jar_entries(old_path)
-                    new_entries = jd.read_jar_entries(new_path)
+                old_entries = jd.read_jar_entries(old_path)
+                new_entries = jd.read_jar_entries(new_path)
 
-                if ignore_meta:
-                    old_entries = {k: v for k, v in old_entries.items()
-                                   if not k.startswith("META-INF/")}
-                    new_entries = {k: v for k, v in new_entries.items()
-                                   if not k.startswith("META-INF/")}
-                if filter_str:
-                    old_entries = {k: v for k, v in old_entries.items() if filter_str in k}
-                    new_entries = {k: v for k, v in new_entries.items() if filter_str in k}
+            if ignore_meta:
+                old_entries = {k: v for k, v in old_entries.items()
+                               if not k.startswith("META-INF/")}
+                new_entries = {k: v for k, v in new_entries.items()
+                               if not k.startswith("META-INF/")}
+            if filter_str:
+                old_entries = {k: v for k, v in old_entries.items() if filter_str in k}
+                new_entries = {k: v for k, v in new_entries.items() if filter_str in k}
 
-                added, removed, modified = jd.classify_entries(
-                    old_entries, new_entries, decompile=decompile,
-                    decompiler_jar=decompiler_jar, progress_cb=self._make_compare_cb(),
-                    result_cb=self._make_result_cb()
-                )
-
+            # 在耗时的 classify 之前先发布 entries，使对比进行中也能查看已发现文件的 diff
+            with self._lock:
                 self._old_entries = old_entries
                 self._new_entries = new_entries
                 self._decompile = decompile
                 self._decompiler_jar = decompiler_jar
+
+            added, removed, modified = jd.classify_entries(
+                old_entries, new_entries, decompile=decompile,
+                decompiler_jar=decompiler_jar, progress_cb=self._make_compare_cb(),
+                result_cb=self._make_result_cb()
+            )
 
             self._set_progress(active=False)
             files = (
