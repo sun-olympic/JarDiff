@@ -329,7 +329,14 @@ def classify_entries(
     new_entries: dict[str, bytes],
     decompile: bool = False,
     decompiler_jar: str | None = None,
+    progress_cb=None,
 ) -> tuple[list[str], list[str], list[str]]:
+    """分类新增/删除/修改文件。
+
+    progress_cb(stage, current, total, name) 若提供，则在对比过程中周期性回调：
+      stage="scan"   逐个比对同名文件的二进制差异（预筛选）
+      stage="refine" 逐个反编译/解码核对源码，剔除误报（CFR 模式下较慢）
+    """
     old_keys = set(old_entries.keys())
     new_keys = set(new_entries.keys())
 
@@ -338,11 +345,20 @@ def classify_entries(
     common = sorted(old_keys & new_keys)
 
     # 1. 预筛选：初步根据二进制 MD5 筛选有差异的文件
-    potential_modified = [f for f in common if md5(old_entries[f]) != md5(new_entries[f])]
+    potential_modified = []
+    total = len(common)
+    for i, f in enumerate(common, 1):
+        if md5(old_entries[f]) != md5(new_entries[f]):
+            potential_modified.append(f)
+        if progress_cb and (i % 50 == 0 or i == total):
+            progress_cb("scan", i, total, f)
 
     # 2. 精确过滤：如果启用了反编译或属于文本文件，比对反编译/解码后的文本内容，剔除字节码变化但源码一致的误报
     modified = []
-    for f in potential_modified:
+    rtotal = len(potential_modified)
+    for i, f in enumerate(potential_modified, 1):
+        if progress_cb:
+            progress_cb("refine", i, rtotal, f)
         if decompile or is_text_file(f):
             old_text, _ = render_entry_text(f, old_entries[f], decompile, decompiler_jar)
             new_text, _ = render_entry_text(f, new_entries[f], decompile, decompiler_jar)

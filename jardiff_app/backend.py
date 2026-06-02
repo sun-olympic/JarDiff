@@ -106,8 +106,9 @@ class JarDiffApi:
 
     @staticmethod
     def _empty_progress() -> dict:
-        return {"active": False, "phase": "", "name": "",
-                "downloaded": 0, "total": 0, "speed": 0.0}
+        return {"active": False, "kind": "", "phase": "", "name": "",
+                "downloaded": 0, "total": 0, "speed": 0.0,
+                "current": 0, "count": 0}
 
     def _set_progress(self, **kw):
         with self._progress_lock:
@@ -120,9 +121,19 @@ class JarDiffApi:
     def _make_progress_cb(self, phase: str, name: str):
         """生成传给 jar_diff.download_file 的进度回调（线程安全更新 self._progress）。"""
         def cb(url, downloaded, total, speed):
-            self._set_progress(active=True, phase=phase, name=name,
+            self._set_progress(active=True, kind="download", phase=phase, name=name,
                                downloaded=int(downloaded), total=int(total),
                                speed=float(speed))
+        return cb
+
+    def _make_compare_cb(self):
+        """生成传给 jar_diff.classify_entries 的对比进度回调。"""
+        stage_phase = {"scan": "对比文件（扫描差异）", "refine": "对比类（核对源码）"}
+        def cb(stage, current, total, name):
+            self._set_progress(active=True, kind="compare",
+                               phase=stage_phase.get(stage, "对比文件"),
+                               name=name, current=int(current), count=int(total),
+                               downloaded=0, total=0, speed=0.0)
         return cb
 
     @staticmethod
@@ -206,7 +217,8 @@ class JarDiffApi:
                     new_entries = {k: v for k, v in new_entries.items() if filter_str in k}
 
                 added, removed, modified = jd.classify_entries(
-                    old_entries, new_entries, decompile=decompile, decompiler_jar=decompiler_jar
+                    old_entries, new_entries, decompile=decompile,
+                    decompiler_jar=decompiler_jar, progress_cb=self._make_compare_cb()
                 )
 
                 self._old_entries = old_entries

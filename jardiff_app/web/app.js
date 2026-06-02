@@ -30,19 +30,27 @@ function renderProgress(p) {
     el.textContent = "";
     return;
   }
-  const parts = [];
-  if (p.phase) parts.push(p.phase);
-  if (p.name) parts.push(p.name);
-  let head = parts.join(" · ");
-  let detail;
-  if (p.total > 0) {
-    const pct = Math.min(100, Math.floor((p.downloaded / p.total) * 100));
-    detail = `${fmtBytes(p.downloaded)} / ${fmtBytes(p.total)} (${pct}%)`;
+  const head = [p.phase, p.name].filter(Boolean).join(" · ");
+  if (p.kind === "compare") {
+    // 对比阶段：展示「当前类 (已处理/总数 百分比)」
+    let detail = "";
+    if (p.count > 0) {
+      const pct = Math.min(100, Math.floor((p.current / p.count) * 100));
+      detail = ` — ${p.current} / ${p.count} (${pct}%)`;
+    }
+    el.textContent = `⚙ ${head}${detail}`;
   } else {
-    detail = `${fmtBytes(p.downloaded)}`;
+    // 下载阶段：展示「已下载/总量 百分比 · 速度」
+    let detail;
+    if (p.total > 0) {
+      const pct = Math.min(100, Math.floor((p.downloaded / p.total) * 100));
+      detail = `${fmtBytes(p.downloaded)} / ${fmtBytes(p.total)} (${pct}%)`;
+    } else {
+      detail = `${fmtBytes(p.downloaded)}`;
+    }
+    if (p.speed > 0) detail += ` · ${fmtBytes(p.speed)}/s`;
+    el.textContent = `↓ ${head} — ${detail}`;
   }
-  if (p.speed > 0) detail += ` · ${fmtBytes(p.speed)}/s`;
-  el.textContent = `↓ ${head} — ${detail}`;
   el.classList.remove("hidden");
 }
 
